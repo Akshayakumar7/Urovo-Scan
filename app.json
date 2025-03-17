@@ -3,10 +3,18 @@
     "name": "scan-app",
     "slug": "scan-app",
     "version": "1.0.0",
-    "platforms": [
-      "ios",
-      "android",
-      "web"
-    ]
+    "plugins": ["./plugins/withBarcodeIntent"],
+    "platforms": ["ios", "android", "web"],
+    "extra": {
+      "eas": {
+        "projectId": "f5c4315b-46bf-4e85-84f7-0cbb1cdc5ee9"
+      }
+    },
+    "android": {
+      "package": "com.akshaysoraganvi07.scanapp"
+    },
+    "ios": {
+      "bundleIdentifier": "com.akshaysoraganvi07.scanapp"
+    }
   }
 }

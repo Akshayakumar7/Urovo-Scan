@@ -1,0 +1,130 @@
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"
+
+// Define project root path
+def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
+
+react {
+    entryFile = file(
+        ["node", "-e", "require('expo/scripts/resolveAppEntry')", projectRoot, "android", "absolute"]
+            .execute(null, rootDir).text.trim()
+    )
+    reactNativeDir = new File(
+        ["node", "--print", "require.resolve('react-native/package.json')"]
+            .execute(null, rootDir).text.trim()
+    ).getParentFile().getAbsoluteFile()
+
+    hermesCommand = "${reactNativeDir}/sdks/hermesc/%OS-BIN%/hermesc"
+
+    // Handle CLI resolution better
+    cliFile = new File(
+        ["node", "--print", "require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })"]
+            .execute(null, rootDir).text.trim()
+    )
+
+    bundleCommand = "export:embed"
+    autolinkLibrariesWithApp()
+}
+
+// Enable Proguard settings
+def enableProguardInReleaseBuilds = (findProperty('android.enableProguardInReleaseBuilds') ?: "false").toBoolean()
+def jscFlavor = 'org.webkit:android-jsc:+'
+
+// --- Android Config ---
+android {
+    namespace 'com.akshaysoraganvi07.scanapp'
+    ndkVersion rootProject.ext.ndkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+    compileSdk rootProject.ext.compileSdkVersion
+
+    defaultConfig {
+        applicationId 'com.akshaysoraganvi07.scanapp'
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            signingConfig signingConfigs.debug
+            shrinkResources (findProperty('android.enableShrinkResourcesInReleaseBuilds')?.toBoolean() ?: false)
+            minifyEnabled enableProguardInReleaseBuilds
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+            crunchPngs (findProperty('android.enablePngCrunchInReleaseBuilds')?.toBoolean() ?: true)
+        }
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging (findProperty('expo.useLegacyPackaging')?.toBoolean() ?: false)
+        }
+    }
+
+    androidResources {
+        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
+
+// Handle packaging options
+["pickFirsts", "excludes", "merges", "doNotStrip"].each { prop ->
+    def options = (findProperty("android.packagingOptions.$prop") ?: "").split(",");
+    options = options*.trim() - ""
+    if (options) {
+        println "android.packagingOptions.$prop += $options (${options.size()})"
+        options.each { android.packagingOptions[prop] += it }
+    }
+}
+
+// --- Dependencies ---
+dependencies {
+    // React Native core (specific version recommended)
+    implementation("com.facebook.react:react-android:0.76.7")
+
+    // Kotlin standard library
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$rootProject.ext.kotlinVersion"
+
+    // Optional Fresco dependencies (GIF/WebP support)
+    def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true"
+    def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true"
+    def isWebpAnimatedEnabled = (findProperty('expo.webp.animated') ?: "") == "true"
+
+    if (isGifEnabled) {
+        implementation("com.facebook.fresco:animated-gif:${reactAndroidLibs.versions.fresco.get()}")
+    }
+    if (isWebpEnabled) {
+        implementation("com.facebook.fresco:webpsupport:${reactAndroidLibs.versions.fresco.get()}")
+        if (isWebpAnimatedEnabled) {
+            implementation("com.facebook.fresco:animated-webp:${reactAndroidLibs.versions.fresco.get()}")
+        }
+    }
+
+    // Hermes setup (default JS engine)
+    if (findProperty('hermesEnabled')?.toBoolean() ?: true) {
+        implementation("com.facebook.react:hermes-android")
+    } else {
+        implementation jscFlavor
+    }
+}
